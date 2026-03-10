@@ -18,7 +18,6 @@ jobs:
 
       - name: Download SDK
         run: |
-          # 针对 MT7986 芯片的 23.05 官方 SDK
           SDK_URL="https://downloads.openwrt.org/releases/23.05.0/targets/mediatek/filogic/openwrt-sdk-23.05.0-mediatek-filogic_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
           curl -L $SDK_URL -o sdk.tar.xz
           tar -xJ -f sdk.tar.xz --strip-components=1
@@ -26,32 +25,33 @@ jobs:
       - name: Update and Install Feeds
         run: |
           ./scripts/feeds update -a
-          # 仅安装必要的 feed，避免安装所有 feed 时触发 Python 依赖冲突
+          # 【关键修正】删除有 Bug 的 python-pymysql 软件包目录，解决循环依赖
+          rm -rf feeds/packages/lang/python/pymysql
           ./scripts/feeds install -a
 
       - name: Add Scutclient Source
         run: |
-          # 确保在 SDK 的 package 目录下创建子目录并克隆
-          mkdir -p package/scutclient_repo
-          cd package/scutclient_repo
-          git clone https://github.com/scutclient/scutclient.git
-          git clone https://github.com/scutclient/luci-app-scutclient.git
+          # 直接克隆到 package 子目录下，方便 SDK 识别
+          git clone https://github.com/scutclient/scutclient.git package/scutclient
+          git clone https://github.com/scutclient/luci-app-scutclient.git package/luci-app-scutclient
 
       - name: Configure and Compile
         run: |
-          # 1. 强制生成基础配置，即使有非致命警告也继续
-          make defconfig || true
+          # 清理可能残留的临时配置
+          rm -f .config
+          touch .config
           
-          # 2. 手动启用我们要编译的插件
-          echo "CONFIG_PACKAGE_scutclient=m" >> .config
-          echo "CONFIG_PACKAGE_luci-app-scutclient=m" >> .config
+          # 强制写入配置
+          echo "CONFIG_PACKAGE_scutclient=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-scutclient=y" >> .config
           
-          # 3. 再次运行 defconfig 以处理新加入的包依赖
+          # 运行 defconfig 生成完整的依赖树
           make defconfig
           
-          # 4. 编译插件。增加 -j1 方便观察详细报错，V=s 打印完整日志
-          make package/scutclient/compile V=s -j1
-          make package/luci-app-scutclient/compile V=s -j1
+          # 开始编译
+          # 如果这里报错，说明是代码本身不兼容新内核，请看日志
+          make package/scutclient/compile V=s
+          make package/luci-app-scutclient/compile V=s
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
