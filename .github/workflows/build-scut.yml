@@ -18,9 +18,12 @@ jobs:
 
       - name: Download SDK
         run: |
-          # 针对 GL-MT3600BE (MT7986) 匹配 GL-iNet 4.x 固件的 SDK
-          SDK_URL="https://downloads.openwrt.org/releases/21.02.7/targets/mediatek/mt7986/openwrt-sdk-21.02.7-mediatek-mt7986_gcc-8.4.0_musl.Linux-x86_64.tar.xz"
-          curl -L $SDK_URL | tar -xJ --strip-components=1
+          # 更新为官方 23.05 稳定版 SDK 链接，支持 MT7986 (Filogic 830)
+          SDK_URL="https://downloads.openwrt.org/releases/23.05.0/targets/mediatek/filogic/openwrt-sdk-23.05.0-mediatek-filogic_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
+          curl -L $SDK_URL -o sdk.tar.xz
+          # 检查文件是否下载成功（避免下载到 HTML 404 页面）
+          file sdk.tar.xz
+          tar -xJ -f sdk.tar.xz --strip-components=1
 
       - name: Update and Install Feeds
         run: |
