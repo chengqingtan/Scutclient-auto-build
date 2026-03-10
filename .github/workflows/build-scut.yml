@@ -25,31 +25,37 @@ jobs:
       - name: Update and Install Feeds
         run: |
           ./scripts/feeds update -a
-          # 【关键修正】删除有 Bug 的 python-pymysql 软件包目录，解决循环依赖
           rm -rf feeds/packages/lang/python/pymysql
           ./scripts/feeds install -a
 
-      - name: Add Scutclient Source
+      - name: Add and Fix Scutclient Source
         run: |
-          # 直接克隆到 package 子目录下，方便 SDK 识别
-          git clone https://github.com/scutclient/scutclient.git package/scutclient
+          # 1. 处理 scutclient 核心程序
+          git clone https://github.com/scutclient/scutclient.git package/scutclient-temp
+          mkdir -p package/scutclient
+          # 将真正包含 OpenWrt Makefile 的目录内容移出来
+          cp -r package/scutclient-temp/source/openwrt/* package/scutclient/
+          # 将源码本体也复制进去，因为 Makefile 里通常会引用相对路径
+          cp -r package/scutclient-temp/source/* package/scutclient/
+          
+          # 2. 处理 LuCI 界面
           git clone https://github.com/scutclient/luci-app-scutclient.git package/luci-app-scutclient
 
       - name: Configure and Compile
         run: |
-          # 清理可能残留的临时配置
+          # 强制刷新配置
           rm -f .config
-          touch .config
-          
-          # 强制写入配置
-          echo "CONFIG_PACKAGE_scutclient=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-scutclient=y" >> .config
-          
-          # 运行 defconfig 生成完整的依赖树
           make defconfig
           
-          # 开始编译
-          # 如果这里报错，说明是代码本身不兼容新内核，请看日志
+          # 检查包是否被识别（如果识别到了，grep 会有输出）
+          ./scripts/feeds list | grep scutclient || true
+          
+          # 尝试启用并编译
+          echo "CONFIG_PACKAGE_scutclient=m" >> .config
+          echo "CONFIG_PACKAGE_luci-app-scutclient=m" >> .config
+          make defconfig
+          
+          # 编译
           make package/scutclient/compile V=s
           make package/luci-app-scutclient/compile V=s
 
