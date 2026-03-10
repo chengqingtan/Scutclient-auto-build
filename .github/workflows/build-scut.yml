@@ -31,36 +31,27 @@ jobs:
       - name: Add and Fix Scutclient Source
         run: |
           # 1. 处理 scutclient 核心程序
-          git clone https://github.com/scutclient/scutclient.git package/scutclient-temp
+          # 克隆后，将 openwrt 目录下的 Makefile 及其配置移动到 package/scutclient
+          git clone https://github.com/scutclient/scutclient.git scutclient-repo
           mkdir -p package/scutclient
-          # 将真正包含 OpenWrt Makefile 的目录内容移出来
-          cp -r package/scutclient-temp/source/openwrt/* package/scutclient/
-          # 将源码本体也复制进去，因为 Makefile 里通常会引用相对路径
-          cp -r package/scutclient-temp/source/* package/scutclient/
+          cp -r scutclient-repo/openwrt/* package/scutclient/
           
           # 2. 处理 LuCI 界面
+          # luci-app-scutclient 的结构通常比较标准，直接克隆即可
           git clone https://github.com/scutclient/luci-app-scutclient.git package/luci-app-scutclient
 
       - name: Configure and Compile
         run: |
-          # 强制刷新配置
-          rm -f .config
+          # 强制生成配置
           make defconfig
           
-          # 检查包是否被识别（如果识别到了，grep 会有输出）
-          ./scripts/feeds list | grep scutclient || true
-          
-          # 尝试启用并编译
+          # 启用插件 (m = 编译 ipk)
           echo "CONFIG_PACKAGE_scutclient=m" >> .config
           echo "CONFIG_PACKAGE_luci-app-scutclient=m" >> .config
+          
+          # 再次 defconfig 以同步依赖
           make defconfig
           
           # 编译
           make package/scutclient/compile V=s
           make package/luci-app-scutclient/compile V=s
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: scutclient-ipks
-          path: bin/packages/**/*.ipk
